@@ -152,7 +152,6 @@ qrcode==6.1
 requests==2.24.0
 rfc3986==1.4.0
 rubicon-objc==0.4.0
-scipy==1.5.2
 six==1.15.0
 sniffio==1.1.0
 soupsieve==2.0.1
