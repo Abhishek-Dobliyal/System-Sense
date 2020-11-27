@@ -15,15 +15,17 @@ from email.message import EmailMessage
 from credentials import EMAIL_ADDR, PASSWORD # Email and Password stored in credentials.py
 from PIL import Image, ImageTk # pip install pillow
 import cv2 # pip install opencv-python
+import numpy as np # pip install numpy
 import dlib # pip install dlib
 import pytesseract as pytrt # pip install pytesseract
-from scipy.spatial import distance # pip install scipy
+# from scipy.spatial import distance # pip install scipy
 import face_recognition as fr # pip install face-recognition
 import speech_recognition as sr # pip install SpeechRecognition
 from playsound import playsound # pip install playsound
 from gtts import gTTS # pip install gTTS
 from googletrans import Translator # pip install googletrans
 from pynput.mouse import Listener # pip install pynput
+import pyautogui as pyg # pip install PyAutoGUI
 import qrcode # pip install qrcode
 
 ##### Utility Functions
@@ -115,9 +117,9 @@ def create_folder(folder_name):
 def calculate_EAR(eye):
     ''' Function responsible for calculating
     Eye Aspect Ratio (EAR) '''
-    A = distance.euclidean(eye[1], eye[5])
-    B = distance.euclidean(eye[2], eye[4])
-    C = distance.euclidean(eye[0], eye[3])
+    A = np.linalg.norm(np.array(eye[1]) - np.array([5]))
+    B = np.linalg.norm(np.array(eye[2]) - np.array(eye[4]))
+    C = np.linalg.norm(np.array(eye[0]) - np.array(eye[3]))
     eye_aspect_ratio = (A+B)/(2.0*C)
     return eye_aspect_ratio
 
@@ -136,45 +138,82 @@ press_count = 0
 
 ##### Button Commands
 def start_recording():
-    '''Function responsible for WebCam Record '''
-    msg = "Recording will begin within 3 seconds. Press 'Esc' to stop."
-    msgbx.showinfo("Record", msg)
-    time.sleep(3)
+    '''Function responsible for WebCam/Screen Record '''
+    choice = msgbx.askquestion("Record", "Would you like to Face Cam?")
+    if choice == "yes":
+        msg = "Recording will begin within 3 seconds. Press 'Esc' to stop."
+        msgbx.showinfo("Record", msg)
+        time.sleep(3)
 
-    cap = cv2.VideoCapture(0)
-    cap.set(3, 600) # Set Width
-    cap.set(4, 500) # Set Height
+        cap = cv2.VideoCapture(0)
+        cap.set(3, 600) # Set Width
+        cap.set(4, 500) # Set Height
 
-    FW = int(cap.get(3)) # Get Frame Width
-    FH = int(cap.get(4)) # Get Frame Height
-    FONT = cv2.FONT_HERSHEY_SIMPLEX
+        FW = int(cap.get(3)) # Get Frame Width
+        FH = int(cap.get(4)) # Get Frame Height
+        FONT = cv2.FONT_HERSHEY_SIMPLEX
 
-    if not os.path.isdir("./output_video/"): # Make output dir if not present already
-        os.mkdir("output_video")
-    OUTPUT_DIR = "./output_video/"
-    FILE_NAME = datetime.now().strftime("%A %m-%d-%Y, %H:%M:%S") + ".mp4" # Save with the current date's name
+        if not os.path.isdir("./output_video/"): # Make output dir if not present already
+            os.mkdir("output_video")
+        OUTPUT_DIR = "./output_video/"
+        FILE_NAME = datetime.now().strftime("%A %m-%d-%Y, %H:%M:%S") + ".mp4" # Save with the current date's name
 
-    four_cc = cv2.VideoWriter_fourcc(*'FMP4')
-    output = cv2.VideoWriter(OUTPUT_DIR + FILE_NAME, four_cc, 8.5, (FW, FH)) # Ouput Recording File
+        four_cc = cv2.VideoWriter_fourcc(*'FMP4')
+        output = cv2.VideoWriter(OUTPUT_DIR + FILE_NAME, four_cc, 8.5, (FW, FH)) # Ouput Recording File
 
-    while cap.isOpened():
-        rtn, frame = cap.read()
-        date = datetime.now().strftime("%A %m/%d/%Y, %H:%M:%S")
+        while cap.isOpened():
+            rtn, frame = cap.read()
+            date = datetime.now().strftime("%A %m/%d/%Y, %H:%M:%S")
 
-        if rtn:
-            frame = cv2.putText(frame, date, (18, 30), FONT, 0.8, (255, 255, 255), 2)
-            output.write(frame)
-            cv2.imshow('Record', frame)
+            if rtn:
+                frame = cv2.putText(frame, date, (18, 30), FONT, 0.8, (255, 255, 255), 2)
+                output.write(frame)
+                cv2.imshow('Record', frame)
 
-            if (cv2.waitKey(1) & 0xFF) == 27: # 'Esp' key to stop recording
+                if (cv2.waitKey(1) & 0xFF) == 27: # 'Esc' key to stop recording
+                    break
+            else:
+                msgbx.showerror("Error!", "Could Not Read from Webcam :(")
                 break
-        else:
-            msgbx.showerror("Error!", "WebCam Not Found :(")
-            break
 
-    cap.release()
-    output.release()
-    cv2.destroyAllWindows()
+        cap.release()
+        output.release()
+        cv2.destroyAllWindows()
+    
+    else:
+        choice = msgbx.askquestion("Record", "Would you like to Screen record?")
+        if choice == "yes":
+            if not os.path.isdir("./output_video/"): # Make output dir if not present already
+                os.mkdir("output_video")
+            
+            SCREEN_WIDTH = root.winfo_getscreenwidth()
+            SCREEN_HEIGHT = root.winfo_getscreenheight()
+            RESOLUTION, FPS = ((SCREEN_WIDTH,SCREEN_HEIGHT), 8.5)
+            OUTPUT_DIR = "./output_video/"
+            FILE_NAME = "ScreenRecording " + datetime.now().strftime("%m-%d-%Y, %H-%M-%S") + ".mp4"
+
+            four_cc = cv2.VideoWriter_fourcc(*'FMP4')
+            output = cv2.VideoWriter(OUTPUT_DIR + FILE_NAME, four_cc, FPS, RESOLUTION) 
+
+            # Live Screen Recording Previe
+            cv2.namedWindow("Record", cv2.WINDOW_NORMAL) 
+            cv2.resizeWindow("Record", 500, 400)
+
+            while True:
+                img = pyg.screenshot() 
+                img = np.array(img)
+
+                frame = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                output.write(frame)
+                cv2.imshow("Record", frame)
+
+                if cv2.waitKey(1) & 0xFF == 27: # Escape to Stop
+                    break
+            
+            output.release()
+            cv2.destroyAllWindows()
+        else:
+            msgbx.showerror("Record", "No option selected!")
 
 def sound_sense():
     ''' Function responsible for handling noise/sound events '''
@@ -257,35 +296,39 @@ def motion_detect():
     output = cv2.VideoWriter(OUTPUT_DIR + FILE_NAME, four_cc, 8.5, (FW, FH)) # Ouput Recording File
 
     while cap.isOpened():
-        _, frame1 = cap.read()
-        _, frame2 = cap.read()
+        rtn1, frame1 = cap.read()
+        rtn2, frame2 = cap.read()
 
-        diff = cv2.absdiff(frame2, frame1)
-        diff = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
+        if rtn1 and rtn2:
+            diff = cv2.absdiff(frame2, frame1)
+            diff = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
 
-        blur = cv2.GaussianBlur(diff, (5,5), 0)
-        _, thresh = cv2.threshold(blur, 25, 255, cv2.THRESH_BINARY)
+            blur = cv2.GaussianBlur(diff, (5,5), 0)
+            _, thresh = cv2.threshold(blur, 25, 255, cv2.THRESH_BINARY)
 
-        contr, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+            contr, _ = cv2.findContours(thresh, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
 
-        if len(contr) > 25:
-            max_cnt = max(contr, key=cv2.contourArea)
-            x,y,w,h = cv2.boundingRect(max_cnt)
-            cv2.rectangle(frame1, (x, y), (x+w, y+h), (255,0,0), 2)
-            cv2.putText(frame1, "MOTION DETECTED", (18,40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
-            count += 0.5
-            # print(count)
-        if count>=35:
-            playsound("./assets/bg_music/beep.mp3")
-            msgbx.showwarning("Motion Sense", "Motion Activity Level Exceeded!")
-            break
+            if len(contr) > 25:
+                max_cnt = max(contr, key=cv2.contourArea)
+                x,y,w,h = cv2.boundingRect(max_cnt)
+                cv2.rectangle(frame1, (x, y), (x+w, y+h), (255,0,0), 2)
+                cv2.putText(frame1, "MOTION DETECTED", (18,40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+                count += 0.5
+                # print(count)
+            if count>=35:
+                playsound("./assets/bg_music/beep.mp3")
+                msgbx.showwarning("Motion Sense", "Motion Activity Level Exceeded!")
+                break
 
-        date = datetime.now().strftime("%A %m/%d/%Y, %H:%M:%S")
-        cv2.putText(frame1, date, (13,690), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
-        output.write(frame1)
-        cv2.imshow("Motion Sense", frame1)
+            date = datetime.now().strftime("%A %m/%d/%Y, %H:%M:%S")
+            cv2.putText(frame1, date, (13,690), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2)
+            output.write(frame1)
+            cv2.imshow("Motion Sense", frame1)
 
-        if cv2.waitKey(1) & 0xFF == 27: # Escape to Stop
+            if cv2.waitKey(1) & 0xFF == 27: # Escape to Stop
+                break
+        else:
+            msgbx.showerror("Error!", "Could Not Read from Webcam :(")
             break
 
     cv2.destroyAllWindows()
@@ -349,13 +392,18 @@ def recognize_face():
             msgbx.showinfo("Face Detect", "Stay Still, when ready press 'Space' to initialize Face Registration")
             cap = cv2.VideoCapture(0)
             while cap.isOpened():
-                _, frame = cap.read()
+                rtn, frame = cap.read()
 
-                cv2.imshow("Face Register", frame)
-                cv2.imwrite("./face_to_recognize/registered_face.jpg", frame)
+                if rtn:
+                    cv2.imshow("Face Register", frame)
+                    cv2.imwrite("./face_to_recognize/registered_face.jpg", frame)
 
-                if cv2.waitKey(1) & 0xFF == 32:
+                    if cv2.waitKey(1) & 0xFF == 32:
+                        break
+                else:
+                    msgbx.showerror("Error!", "Could Not Read from Webcam :(")
                     break
+
             cap.release()
             cv2.destroyAllWindows()
             msgbx.showinfo("Face Detect", "Face Successfully Registered!")
@@ -375,23 +423,29 @@ def recognize_face():
         while rem_attempts > 0:
             cap = cv2.VideoCapture(0)
             while cap.isOpened():
-                _, frame = cap.read()
-                _, frame2 = cap.read()
-                gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                rtn1, frame = cap.read()
+                rtn2, frame2 = cap.read()
 
-                faces = face_cascade.detectMultiScale(gray_frame, 1.1, 4)
+                if rtn1 and rtn2:
+                    gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
 
-                for (x, y, w, h) in faces:
-                    cv2.rectangle(frame, (x,y), (x+w,y+h), (0, 0, 255), 2)
-                    cv2.putText(frame, "Press 'Space' when ready", (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 
-                                0.8, (255, 255, 255), 2)
-                
-                cv2.imshow("Face Detect", frame)
-                img_name = datetime.now().strftime("%A %m-%d-%Y, %H:%M:%S") + ".jpg"
-                recent_img = img_name
+                    faces = face_cascade.detectMultiScale(gray_frame, 1.1, 4)
 
-                if cv2.waitKey(1) & 0xFF == 32: # Space Bar
-                    cv2.imwrite(f"./output_img/{img_name}", frame2)
+                    for (x, y, w, h) in faces:
+                        cv2.rectangle(frame, (x,y), (x+w,y+h), (0, 0, 255), 2)
+                        cv2.putText(frame, "Press 'Space' when ready", (30, 50), cv2.FONT_HERSHEY_SIMPLEX, 
+                                    0.8, (255, 255, 255), 2)
+                    
+                    cv2.imshow("Face Detect", frame)
+                    img_name = datetime.now().strftime("%A %m-%d-%Y, %H:%M:%S") + ".jpg"
+                    recent_img = img_name
+
+                    if cv2.waitKey(1) & 0xFF == 32: # Space Bar
+                        cv2.imwrite(f"./output_img/{img_name}", frame2)
+                        break
+
+                else:
+                    msgbx.showerror("Error!", "Could Not Read from Webcam :(")
                     break
 
             cap.release()
@@ -440,53 +494,59 @@ def detect_drowsiness():
     alarm_counter = 0
 
     while True:
-        _, frame = cap.read()
-        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-        
-        faces = hog_face_detector(gray)
-        for face in faces:
-            face_landmarks = dlib_facelandmark(gray, face)
-            left_eye = []
-            right_eye = []
+        rtn, frame = cap.read()
 
-            for n in range(36,42): # For right eye detection
-                x1 = face_landmarks.part(n).x
-                y1 = face_landmarks.part(n).y
-                left_eye.append((x1,y1))
-                next_point = n+1
-                if n == 41:
-                    next_point = 36
-                x2 = face_landmarks.part(next_point).x
-                y2 = face_landmarks.part(next_point).y
-                cv2.line(frame,(x1,y1),(x2,y2),(0,255,0),1)
+        if rtn:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            
+            faces = hog_face_detector(gray)
+            for face in faces:
+                face_landmarks = dlib_facelandmark(gray, face)
+                left_eye = []
+                right_eye = []
 
-            for n in range(42,48): # For left eye detection
-                x1 = face_landmarks.part(n).x
-                y1 = face_landmarks.part(n).y
-                right_eye.append((x1,y1))
-                next_point = n+1
-                if n == 47:
-                    next_point = 42
-                x2 = face_landmarks.part(next_point).x
-                y2 = face_landmarks.part(next_point).y
-                cv2.line(frame,(x1,y1),(x2,y2),(0,255,0),1)
+                for n in range(36,42): # For right eye detection
+                    x1 = face_landmarks.part(n).x
+                    y1 = face_landmarks.part(n).y
+                    left_eye.append((x1,y1))
+                    next_point = n+1
+                    if n == 41:
+                        next_point = 36
+                    x2 = face_landmarks.part(next_point).x
+                    y2 = face_landmarks.part(next_point).y
+                    cv2.line(frame,(x1,y1),(x2,y2),(0,255,0),1)
 
-            left_EAR = calculate_EAR(left_eye)
-            right_EAR = calculate_EAR(right_eye)
+                for n in range(42,48): # For left eye detection
+                    x1 = face_landmarks.part(n).x
+                    y1 = face_landmarks.part(n).y
+                    right_eye.append((x1,y1))
+                    next_point = n+1
+                    if n == 47:
+                        next_point = 42
+                    x2 = face_landmarks.part(next_point).x
+                    y2 = face_landmarks.part(next_point).y
+                    cv2.line(frame,(x1,y1),(x2,y2),(0,255,0),1)
 
-            final_EAR = (left_EAR+right_EAR)/2
-            final_EAR = round(final_EAR,2)
-            if final_EAR < 0.15:
-                alarm_counter += 1
-                print("Drowsy")
-                print(final_EAR)
-        
-        cv2.imshow("DrowZzz", frame)
-        if cv2.waitKey(1) & 0xFF == 27:
-            break
-        if alarm_counter >= 5:
-            playsound("./assets/bg_music/alarm.mp3")
-            msgbx.showinfo("DrowZzz Detect", "You are feeling DrowZZZ, Why not take a break?")
+                left_EAR = calculate_EAR(left_eye)
+                right_EAR = calculate_EAR(right_eye)
+
+                final_EAR = (left_EAR+right_EAR)/2
+                final_EAR = round(final_EAR,2)
+                if final_EAR < 0.15:
+                    alarm_counter += 1
+                    print("Drowsy")
+                    print(final_EAR)
+            
+            cv2.imshow("DrowZzz", frame)
+            if cv2.waitKey(1) & 0xFF == 27:
+                break
+            if alarm_counter >= 5:
+                playsound("./assets/bg_music/alarm.mp3")
+                msgbx.showinfo("DrowZzz Detect", "You are feeling DrowZZZ, Why not take a break?")
+                break
+
+        else:
+            msgbx.showerror("Error!", "Could Not Read from Webcam :(")
             break
 
     cap.release()
