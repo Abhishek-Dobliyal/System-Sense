@@ -18,7 +18,6 @@ import cv2 # pip install opencv-python
 import numpy as np # pip install numpy
 import dlib # pip install dlib
 import pytesseract as pytrt # pip install pytesseract
-# from scipy.spatial import distance # pip install scipy
 import face_recognition as fr # pip install face-recognition
 import speech_recognition as sr # pip install SpeechRecognition
 from playsound import playsound # pip install playsound
@@ -117,7 +116,8 @@ def create_folder(folder_name):
 def calculate_EAR(eye):
     ''' Function responsible for calculating
     Eye Aspect Ratio (EAR) '''
-    A = np.linalg.norm(np.array(eye[1]) - np.array([5]))
+    print(eye[1])
+    A = np.linalg.norm(np.array(eye[1]) - np.array(eye[5]))
     B = np.linalg.norm(np.array(eye[2]) - np.array(eye[4]))
     C = np.linalg.norm(np.array(eye[0]) - np.array(eye[3]))
     eye_aspect_ratio = (A+B)/(2.0*C)
