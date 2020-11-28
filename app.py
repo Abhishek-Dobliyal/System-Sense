@@ -19,10 +19,7 @@ import numpy as np # pip install numpy
 import dlib # pip install dlib
 import pytesseract as pytrt # pip install pytesseract
 import face_recognition as fr # pip install face-recognition
-import speech_recognition as sr # pip install SpeechRecognition
 from playsound import playsound # pip install playsound
-from gtts import gTTS # pip install gTTS
-from googletrans import Translator # pip install googletrans
 from pynput.mouse import Listener # pip install pynput
 import pyautogui as pyg # pip install PyAutoGUI
 import qrcode # pip install qrcode
@@ -36,29 +33,6 @@ def is_connected():
         return r.status == 200
     except Exception:
         return False
-
-def speech_recognizer():
-    ''' Listen to Outside Sounds and
-    convert them to text '''
-    tts = ""
-    r = sr.Recognizer()
-    print("Speak...")
-    with sr.Microphone() as source:
-        r.adjust_for_ambient_noise(source)
-        audio = r.listen(source)
-    try:
-        tts = r.recognize_google(audio)
-    except:
-        print("Not Recognized")
-    # print(text)
-    return tts
-
-def get_language_code(text):
-    ''' Fetches Language Code of the input text '''
-    trans = Translator()
-    lang_code = trans.detect(text).lang
-
-    return lang_code
 
 def capture_img(output_path, img_name):
     ''' Capture a photo using webcam '''
@@ -139,8 +113,8 @@ press_count = 0
 ##### Button Commands
 def start_recording():
     '''Function responsible for WebCam/Screen Record '''
-    choice = msgbx.askquestion("Record", "Would you like to Face Cam?")
-    if choice == "yes":
+    response = msgbx.askquestion("Record", "Would you like to Face Cam?")
+    if response == "yes":
         msg = "Recording will begin within 3 seconds. Press 'Esc' to stop."
         msgbx.showinfo("Record", msg)
         time.sleep(3)
@@ -181,8 +155,8 @@ def start_recording():
         cv2.destroyAllWindows()
     
     else:
-        choice = msgbx.askquestion("Record", "Would you like to Screen record?")
-        if choice == "yes":
+        response = msgbx.askquestion("Record", "Would you like to Screen record?")
+        if response == "yes":
             if not os.path.isdir("./output_video/"): # Make output dir if not present already
                 os.mkdir("output_video")
             
@@ -215,70 +189,10 @@ def start_recording():
         else:
             msgbx.showerror("Record", "No option selected!")
 
-def sound_sense():
-    ''' Function responsible for handling noise/sound events '''
-    if not is_connected():
-        msg = "Your system is not online. This feature requires internet!"
-        msgbx.showinfo("Connection Error", msg)
-
-    else:
-        if not os.path.isdir("./output_audio/"): # Make output dir if not present already
-            os.mkdir("output_audio")
-        OUTPUT_DIR = "./output_audio/"
-        FILE_NAME = datetime.now().strftime("%A %m-%d-%Y, %H:%M:%S") + ".mp3"
-        msgbx.showinfo("Sound Sense", "Sound Sense Activated!")
-
-        new_window = Toplevel()
-
-        new_window.geometry("405x400")
-        new_window.minsize(405, 400)
-        new_window.maxsize(405, 400)
-        new_window.title("Sound Sense")
-        new_window.config(bg="black")
-
-        Label(new_window, text="Processing...", bg="black",
-             fg="red", font="copperplate 30 bold").place(relx=0.28, rely=0.08)
-
-        try:
-            frames = [PhotoImage(file='./assets/images/sound_sense.gif',
-                        format=f'gif -index {j}') for i in range(2) for j in range(10)]
-            def update(index):
-                ''' Show Animations '''
-                try:
-                    frame = frames[index]
-                    index += 1
-                    label.configure(image=frame)
-                    new_window.after(100, update, index)
-                except:
-                    msgbx.showinfo("Sound Sense", "Scanning Surroundings!\nSpeak 'Deactivate' to Stop.")
-                    output = ""
-
-                    while len(output)<=30:
-                        text = speech_recognizer()
-                        output += (text + ".")
-
-                        if text.lower() == "deactivate":
-                            playsound("./assets/bg_music/exit_msg.mp3")
-                            new_window.destroy()
-                            break
-                    else:
-                        lang_code = get_language_code(output)
-                        print(lang_code)
-                        playsound("./assets/bg_music/beep.mp3")
-                        to_voice = gTTS(text=output, lang=lang_code, slow=False)
-                        to_voice.save(OUTPUT_DIR + FILE_NAME)
-                        new_window.destroy()
-                        msgbx.showwarning("Sound Sense", "Sound Waves Threshold Limit Exceeded!")
-
-            label = Label(new_window, bg="black", relief=SUNKEN, bd=4)
-            label.place(rely=0.25)
-            new_window.after(0, update, 0)
-        except:
-            pass
-
 def motion_detect():
     ''' Detect Motion Inside Frame'''
     count = 0 # Counter
+    THRESHOLD_VALUE = 35
     msg = "Initiating Motion Detect. Press 'Esc' to stop."
     msgbx.showinfo("Motion Sense", msg)
     time.sleep(3)
@@ -315,7 +229,7 @@ def motion_detect():
                 cv2.putText(frame1, "MOTION DETECTED", (18,40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
                 count += 0.5
                 # print(count)
-            if count>=35:
+            if count >= THRESHOLD_VALUE:
                 playsound("./assets/bg_music/beep.mp3")
                 msgbx.showwarning("Motion Sense", "Motion Activity Level Exceeded!")
                 break
@@ -341,7 +255,8 @@ def ghost_sense():
         msg = "Your system is not online. This feature requires internet!"
         msgbx.showinfo("Connection", msg)
         return
-        
+    
+    THRESHOLD_VALUE = 5
     regex = '^[a-z0-9]+[\._]?[a-z0-9]+[@]\w+[.]\w{2,3}$'
     if not re.search(regex, email.get()):
         msgbx.showerror("Ghost Sense", "Receiver's mail address not found!")
@@ -361,13 +276,13 @@ def ghost_sense():
             if pressed:
                 press_count += 1
 
-            if press_count > 5:
+            if press_count > THRESHOLD_VALUE:
                 listener.stop()
         # Collect mouse events until released
         with Listener(on_click=on_click) as listener:
             listener.join()
 
-        if press_count > 5:
+        if press_count > THRESHOLD_VALUE:
             playsound("./assets/bg_music/pred_sense.mp3")
             capture_img(OUTPUT_DIR, FILE_NAME)
             send_email(email.get(), OUTPUT_DIR+FILE_NAME)
@@ -488,10 +403,12 @@ def detect_drowsiness():
     ''' Detects drowsiness using 
     Eye Aspect Ratio '''
     msgbx.showinfo("DrowZzz Detect", "Initiating DrowZzz Detect!")
+
     cap = cv2.VideoCapture(0)
     hog_face_detector = dlib.get_frontal_face_detector()
     dlib_facelandmark = dlib.shape_predictor("./assets/shape_predictor_68_face_landmarks.dat")
     alarm_counter = 0
+    THRESHOLD_VALUE = 5
 
     while True:
         rtn, frame = cap.read()
@@ -540,7 +457,7 @@ def detect_drowsiness():
             cv2.imshow("DrowZzz", frame)
             if cv2.waitKey(1) & 0xFF == 27:
                 break
-            if alarm_counter >= 5:
+            if alarm_counter >= THRESHOLD_VALUE:
                 playsound("./assets/bg_music/alarm.mp3")
                 msgbx.showinfo("DrowZzz Detect", "You are feeling DrowZZZ, Why not take a break?")
                 break
@@ -665,7 +582,6 @@ sub_header_label.place(relx=0.31, rely=0.15)
 face_icon = PhotoImage(file="./assets/icons/face_recognition.png")
 motion = PhotoImage(file="./assets/icons/motion.png")
 g_sense_icon = PhotoImage(file="./assets/icons/ghost.png")
-sound = PhotoImage(file="./assets/icons/sound.png")
 drowsiness_icon = PhotoImage(file="./assets/icons/drowsy.png")
 record = PhotoImage(file="./assets/icons/record.png")
 img_to_txt = PhotoImage(file="./assets/icons/img_txt.png")
@@ -678,25 +594,19 @@ motion_btn = Button(root, text="M-Sense", image=motion, compound=TOP,
                     font="copperplate 25", command=motion_detect)
 motion_btn.config(fg="#bd557f", highlightbackground="#6681c4", 
                   highlightthickness=5, cursor="hand")
-motion_btn.place(relx=0.08, rely=0.30)
-
-sound_btn = Button(root, text="S-Sense", image=sound, compound=TOP,
-                  font="copperplate 25", command=sound_sense)
-sound_btn.config(fg="seagreen", highlightbackground="#b09d33", 
-                highlightthickness=5, cursor="hand")
-sound_btn.place(relx=0.31, rely=0.30)
+motion_btn.place(relx=0.13, rely=0.30)
 
 face_rcg_btn = Button(root, text="LOCK-IT", image=face_icon, compound=TOP,
                     font="copperplate 25")
 face_rcg_btn.config(fg="#2235bf", highlightbackground="#4fbd24", highlightthickness=5,
                     cursor="hand", command=recognize_face)
-face_rcg_btn.place(relx=0.545, rely=0.30)
+face_rcg_btn.place(relx=0.42, rely=0.30)
 
 g_sense_btn = Button(root, text="G-Sense", image=g_sense_icon, compound=TOP,
                        font="copperplate 25", command=ghost_sense)
 g_sense_btn.config(fg="black", highlightbackground="#db5151", 
                      highlightthickness=5, cursor="hand")
-g_sense_btn.place(relx=0.775, rely=0.30)
+g_sense_btn.place(relx=0.71, rely=0.30)
 
 ### Lower Row Buttons
 record_btn = Button(root, text="Record", image=record, compound=TOP,
