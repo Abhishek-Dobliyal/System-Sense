@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-+0n0xVW2eSR5OomGNYDnhzAbDsOXxcvSN1TPprVMTNDbiYZCxYbOOl7+AMvyTG2x" crossorigin="anonymous">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.1/dist/js/bootstrap.bundle.min.js" integrity="sha384-gtEjrD/SeCtmISkJkNUaaKMoLD0//ElJ19smozuHV6z3Iehds+3Ulb9Bn9Plx0x4" crossorigin="anonymous"></script>
+    <title>System Sense Web Portal</title>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid justify-content-center">
+          <a class="navbar-brand" href="#">Welcome to System Sense Web Portal</a>
+        </div>
+    </nav>
+    <div class="card mt-3">
+        <div class="card-body">
+          <span style="color: red;">Your System has detected an unauthorized access!</span>
+          Choose from below on what action to be taken.
+        </div>
+      </div>
+    <div class="card-body mt-2 justify-content-center">
+        <form action="" method="POST">
+            <select class="form-select" name="select_action">
+                <option selected value="0">Select a Action</option>
+                <option value="1" name="value1">Put my system to sleep</option>
+                <option value="2" name="value2">Shutdowm my system</option>
+                <option value="3" name="value3">I am aware of it</option>
+            </select>
+            <button type="submit" class="btn btn-primary mt-3">Execute Action</button>
+        </form>
+    </div>
+
+    {% if selected_option > 0 %}
+        {% if selected_option == 1 or selected_option == 2 %}
+            <div class="alert alert-success text-center" role="alert">
+                Your action was performed successfully!
+            </div>
+        {% else %}
+            <div class="alert alert-success text-center" role="alert">
+                Got it! No action will be performed.
+            </div>
+        {% endif %}
+    {% else %}
+        <div class="alert alert-info text-center" role="alert">
+            Please select a valid option!
+        </div>
+    {% endif %}
+</body>
+</html>
