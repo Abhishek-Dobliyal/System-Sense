@@ -49,3 +49,5 @@ python3 app.py
 - The email functionality only works with gmail and that too if [less secure](https://myaccount.google.com/lesssecureapps) apps are turned on.
 
 - Add your email and password in the credentials.py file
+
+- The web portal can be accessed over the internet if deployed to application [hosting platforms](https://www.g2.com/categories/cloud-platform-as-a-service-paas)
