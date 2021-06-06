@@ -10,9 +10,12 @@ import random
 import time
 import smtplib
 import csv
-from urllib3 import PoolManager
 from email.message import EmailMessage
+import urllib3
+import json
+import threading
 from credentials import EMAIL_ADDR, PASSWORD # Email and Password stored in credentials.py
+
 from PIL import Image, ImageTk # pip install pillow
 import cv2 # pip install opencv-python
 import numpy as np # pip install numpy
@@ -20,7 +23,8 @@ import dlib # pip install dlib
 import pytesseract as pytrt # pip install pytesseract
 import face_recognition as fr # pip install face-recognition
 from playsound import playsound # pip install playsound
-from pynput.mouse import Listener # pip install pynput
+from pynput.mouse import Listener as MouseListener # pip install pynput
+from pynput.keyboard import Listener as KeyboardListener
 import pyautogui as pyg # pip install PyAutoGUI
 import qrcode # pip install qrcode
 
@@ -28,7 +32,7 @@ import qrcode # pip install qrcode
 def is_connected():
     ''' Checks wheather an active connection is present or not '''
     try:
-        http = PoolManager()
+        http = urllib3.PoolManager()
         r = http.request('GET', 'https://www.google.co.in')
         return r.status == 200
     except Exception:
@@ -46,21 +50,22 @@ def capture_img(output_path, img_name):
     cap.release()
     cv2.destroyAllWindows()
 
-def send_email(to_mail, path_to_img):
+def send_email(to_mail, path_to_img=None):
     ''' Send Alert Mail '''
     msg = EmailMessage()
     msg['Subject'] = "Ghost Sense"
     msg['From'] = EMAIL_ADDR
     msg['To'] = to_mail
-    msg.set_content('Intruder Alert!')
+    msg.set_content('Unauthorized Access Alert!\nAccess the web portal from http://192.168.1.4:5000/response to take actions.')
 
-    with open(path_to_img, 'rb') as f:
-        data = f.read()
-        file_name, file_extension = os.path.splitext(path_to_img)
-        file_extension = file_extension.strip('.') # Remove the preceding '.' from extension
-        file_name = file_name[13:]
+    if path_to_img:
+        with open(path_to_img, 'rb') as f:
+            data = f.read()
+            file_name, file_extension = os.path.splitext(path_to_img)
+            file_extension = file_extension.strip('.') # Remove the preceding '.' from extension
+            file_name = file_name[13:]
 
-    msg.add_attachment(data, maintype='image', subtype=file_extension, filename=file_name)
+        msg.add_attachment(data, maintype='image', subtype=file_extension, filename=file_name)
 
     with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp:
 
@@ -90,12 +95,25 @@ def create_folder(folder_name):
 def calculate_EAR(eye):
     ''' Function responsible for calculating
     Eye Aspect Ratio (EAR) '''
-    print(eye[1])
     A = np.linalg.norm(np.array(eye[1]) - np.array(eye[5]))
     B = np.linalg.norm(np.array(eye[2]) - np.array(eye[4]))
     C = np.linalg.norm(np.array(eye[0]) - np.array(eye[3]))
     eye_aspect_ratio = (A+B)/(2.0*C)
     return eye_aspect_ratio
+
+def get_action_response():
+    ''' Function responsible for getting the 
+    user response from web portal '''
+    url = 'http://192.168.1.4:5000/response'
+    http = urllib3.PoolManager()
+
+    while True:
+        user_response = json.loads(http.request('GET', url).data)['option']
+        if user_response != 0:
+            if user_response == 1:
+                print('Putting system to sleep...')
+            elif user_response == 2:
+                print('Shutting system down!')
 
 ######### GUI Configurations
 root = Tk()
@@ -160,9 +178,8 @@ def start_recording():
             if not os.path.isdir("./output_video/"): # Make output dir if not present already
                 os.mkdir("output_video")
             
-            SCREEN_WIDTH = root.winfo_getscreenwidth()
-            SCREEN_HEIGHT = root.winfo_getscreenheight()
-            RESOLUTION, FPS = ((SCREEN_WIDTH,SCREEN_HEIGHT), 8.5)
+            SCREEN_WIDTH, SCREEN_HEIGHT = pyg.size()
+            RESOLUTION, FPS = ((SCREEN_WIDTH,SCREEN_HEIGHT), 6.5)
             OUTPUT_DIR = "./output_video/"
             FILE_NAME = "ScreenRecording " + datetime.now().strftime("%m-%d-%Y, %H-%M-%S") + ".mp4"
 
@@ -224,12 +241,14 @@ def motion_detect():
 
             if len(contr) > 25:
                 max_cnt = max(contr, key=cv2.contourArea)
-                x,y,w,h = cv2.boundingRect(max_cnt)
+                x, y, w, h = cv2.boundingRect(max_cnt)
                 cv2.rectangle(frame1, (x, y), (x+w, y+h), (255,0,0), 2)
                 cv2.putText(frame1, "MOTION DETECTED", (18,40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
                 count += 0.5
                 # print(count)
             if count >= THRESHOLD_VALUE:
+                threading.Thread(target=get_action_response, args=()).start()
+                threading.Thread(target=send_email, args=[email.get(), ''])
                 playsound("./assets/bg_music/beep.mp3")
                 msgbx.showwarning("Motion Sense", "Motion Activity Level Exceeded!")
                 break
@@ -256,7 +275,7 @@ def ghost_sense():
         msgbx.showinfo("Connection", msg)
         return
     
-    THRESHOLD_VALUE = 5
+    THRESHOLD_VALUE = 30
     regex = '^[a-z0-9]+[\._]?[a-z0-9]+[@]\w+[.]\w{2,3}$'
     if not re.search(regex, email.get()):
         msgbx.showerror("Ghost Sense", "Receiver's mail address not found!")
@@ -271,7 +290,7 @@ def ghost_sense():
 
         def on_click(x, y, button, pressed):
             ''' Handles Mouse Events and
-            increase the pointer click count '''
+            increase the press count '''
             global  press_count
             if pressed:
                 press_count += 1
@@ -279,14 +298,31 @@ def ghost_sense():
             if press_count > THRESHOLD_VALUE:
                 listener.stop()
         # Collect mouse events until released
-        with Listener(on_click=on_click) as listener:
-            listener.join()
+
+        def on_press(key):
+            ''' Handles Keyboard Events and
+            increase the press count '''
+            global press_count
+            try:
+                # print(key.char)
+                press_count += 1
+
+                if press_count > THRESHOLD_VALUE:
+                    return False
+            except AttributeError:
+                print(key)
+            
+        # Listen for both Mouse and Keyboard events
+        with MouseListener(on_click=on_click) as listener:
+            with KeyboardListener(on_press=on_press) as listener:
+                listener.join()
 
         if press_count > THRESHOLD_VALUE:
+            threading.Thread(target=get_action_response, args=()).start()
             playsound("./assets/bg_music/pred_sense.mp3")
             capture_img(OUTPUT_DIR, FILE_NAME)
-            send_email(email.get(), OUTPUT_DIR+FILE_NAME)
-            print("Sent!")
+            threading.Thread(target=send_email, args=[email.get(), OUTPUT_DIR+FILE_NAME])
+            # print("Sent!")
             msgbx.showwarning("Ghost Sense", "Unauthorized Access Detected!")
 
 def recognize_face():
@@ -328,7 +364,7 @@ def recognize_face():
             os.remove("./face_to_recognize/.DS_Store")
         user_img_name = os.listdir("./face_to_recognize/")[0] # The face to be recognized
         print(user_img_name)
-        msgbx.showinfo("Face Detect", "Do not Forget to put your face image in the correct folder")
+        msgbx.showinfo("Face Detect", "Registered face found! Initializing Face Detect...")
         time.sleep(0.5)
         msgbx.showinfo("Face Detect", "Stay Still, when ready press 'Space' to initialize Face Detect")
         recent_img = ""
@@ -431,7 +467,7 @@ def detect_drowsiness():
                         next_point = 36
                     x2 = face_landmarks.part(next_point).x
                     y2 = face_landmarks.part(next_point).y
-                    cv2.line(frame,(x1,y1),(x2,y2),(0,255,0),1)
+                    cv2.line(frame, (x1,y1), (x2,y2), (0,255,0), 1)
 
                 for n in range(42,48): # For left eye detection
                     x1 = face_landmarks.part(n).x
@@ -442,13 +478,13 @@ def detect_drowsiness():
                         next_point = 42
                     x2 = face_landmarks.part(next_point).x
                     y2 = face_landmarks.part(next_point).y
-                    cv2.line(frame,(x1,y1),(x2,y2),(0,255,0),1)
+                    cv2.line(frame, (x1,y1), (x2,y2), (0,255,0), 1)
 
                 left_EAR = calculate_EAR(left_eye)
                 right_EAR = calculate_EAR(right_eye)
 
-                final_EAR = (left_EAR+right_EAR)/2
-                final_EAR = round(final_EAR,2)
+                final_EAR = (left_EAR + right_EAR) / 2
+                final_EAR = round(final_EAR, 2)
                 if final_EAR < 0.15:
                     alarm_counter += 1
                     print("Drowsy")
